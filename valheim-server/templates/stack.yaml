@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: valheim-config
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: valheim-opt
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valheim-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valheim-server
+  template:
+    metadata:
+      labels:
+        app: valheim-server
+    spec:
+      containers:
+        - name: valheim-server
+          image: ghcr.io/community-valheim-tools/valheim-server:1.4.1
+          ports:
+            - containerPort: 2456
+              protocol: UDP
+            - containerPort: 2457
+              protocol: UDP
+          env:
+            - name: SERVER_NAME
+              value: "Valheim Server"
+            - name: SERVER_PORT
+              value: "2456"
+            - name: SERVER_TICKRATE
+              value: "5"
+            - name: WORLD_NAME
+              value: "world"
+            - name: PUBLIC_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: opt-volume
+              mountPath: /opt/valheim
+      volumes:
+        - name: config-volume
+          persistentVolumeClaim:
+            claimName: valheim-config
+        - name: opt-volume
+          persistentVolumeClaim:
+            claimName: valheim-opt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valheim-server
+spec:
+  selector:
+    app: valheim-server
+  ports:
+    - name: udp-2456
+      port: 2456
+      protocol: UDP
+      targetPort: 2456
+    - name: udp-2457
+      port: 2457
+      protocol: UDP
+      targetPort: 2457
+  type: ClusterIP
